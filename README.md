@@ -8,3 +8,6 @@ The OSC messages will be sent to Supercollider, that then finally turns it into 
 - Create a custom DotA 2 map via the workshop tools
 - replace the content of the scripts folder in (your steam folder)/steamapps/common/dota 2 beta/game/dota_addons/(your addon name)
 
+
+##Libraries used
+
