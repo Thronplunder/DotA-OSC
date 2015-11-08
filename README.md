@@ -10,4 +10,5 @@ The OSC messages will be sent to Supercollider, that then finally turns it into 
 
 
 ##Libraries used
-
+David Heiko Kolf's dkjson: [Link](http://dkolf.de/src/dkjson-lua.fsl/home)
+bmddota's Barebone Starter Mod Kit: [Link](https://github.com/bmddota/barebones)
