@@ -209,7 +209,7 @@ function GameMode:OnLastHit(keys)
   lastHitTable.eventName = "Dota2LastHit"
   lastHitTable.playerID = keys.PlayerID
   lastHitTable.heroKill = isHeroKill
-  lastHitTable.killedEntID = key.EntKilled
+  lastHitTable.killedEntID = keys.EntKilled
 
   local jsonTable = json.encode(lastHitTable)
   sendRequest(ip .. jsonTable)
@@ -223,9 +223,11 @@ function GameMode:OnTreeCut(keys)
   local treeX = keys.tree_x
   local treeY = keys.tree_y
 
-  local treeMap ={}
-  treeMap.eventName = "Dota2TreeCut"
-  local jsonTable = json.encode(treemap)
+  local treeTable ={}
+  treeTable.eventName = "Dota2TreeCut"
+  treeTable.xCoord = treeX
+  treeTable.yCoord = treeY
+  local jsonTable = json.encode(treeTable)
   sendRequest(ip .. jsonTable)
 
 end
