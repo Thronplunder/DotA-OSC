@@ -52,7 +52,7 @@ function GameMode:OnNPCSpawned(keys)
   local npc = EntIndexToHScript(keys.entindex)
 
   local spawnTable = {}
-  spawnTable.eventName = "NPCSpawn"
+  spawnTable.eventName = "Dota2NPCSpawn"
   spawnTable.entIndex = keys.entindex
   local address = ip .. json.encode(spawnTable)
   sendRequest(address)
@@ -82,11 +82,18 @@ end
 function GameMode:OnItemPickedUp(keys)
   DebugPrint( '[BAREBONES] OnItemPickedUp' )
   DebugPrintTable(keys)
-
+  print("item picked up")
   local heroEntity = EntIndexToHScript(keys.HeroEntityIndex)
   local itemEntity = EntIndexToHScript(keys.ItemEntityIndex)
   local player = PlayerResource:GetPlayer(keys.PlayerID)
   local itemname = keys.itemname
+  local pickUpTable = {}
+  pickUpTable.eventName = "Dota2ItemPickUp"
+  pickUpTable.playerID = keys.PlayerID
+  pickUpTable.itemCost = itemEntity:GetCost()
+  pickUpTable.currentGold = PlayerResource:GetGold(keys.Play)
+  local jsonTable = json.encode(pickUpTable)
+  sendRequest(ip .. jsonTable)
 end
 
 -- A player has reconnected to the game.  This function can be used to repaint Player-based particles or change
@@ -100,7 +107,7 @@ end
 function GameMode:OnItemPurchased( keys )
   DebugPrint( '[BAREBONES] OnItemPurchased' )
   DebugPrintTable(keys)
-
+  print("Item purchased")
   -- The playerID of the hero who is buying something
   local plyID = keys.PlayerID
   if not plyID then return end
@@ -110,6 +117,14 @@ function GameMode:OnItemPurchased( keys )
   
   -- The cost of the item purchased
   local itemcost = keys.itemcost
+
+  local itemBuyTable = {}
+  itemBuyTable.eventName = "Dota2ItemPurchased"
+  itemBuyTable.playerID = plyID
+  itemBuyTable.price = itemcost
+  itemBuyTable.currentGold = PlayerResource:GetGold(plyID)
+  local jsonTable = json.encode(itemBuyTable)
+  sendRequest(ip .. jsonTable)
   
 end
 
@@ -122,7 +137,7 @@ function GameMode:OnAbilityUsed(keys)
   local abilityname = keys.abilityname
 
   local abilityTable = {}
-  abilityTable.eventName = "AbilityUsed"
+  abilityTable.eventName = "Dota2AbilityUsed"
   abilityTable.playerID = keys.PlayerID
 
   local jsonTable = json.encode(abilityTable)
@@ -173,8 +188,9 @@ function GameMode:OnPlayerLevelUp(keys)
   local level = keys.level
 
   local levelUpTable = {}
-  levelUpTable.eventName = "LevelUp"
+  levelUpTable.eventName = "Dota2LevelUp"
   levelUpTable.entIndex = keys.player
+  levelUpTable.entLevel = level
   local jsonTable = json.encode(levelUpTable)
   sendRequest(ip .. jsonTable)
 end
@@ -191,9 +207,10 @@ function GameMode:OnLastHit(keys)
   local killedEnt = EntIndexToHScript(keys.EntKilled)
 
   local lastHitTable = {}
-  lastHitTable.eventName = "LastHit"
+  lastHitTable.eventName = "Dota2LastHit"
   lastHitTable.playerID = keys.PlayerID
   lastHitTable.heroKill = isHeroKill
+  lastHitTable.killedEntID = key.EntKilled
 
   local jsonTable = json.encode(lastHitTable)
   UTIL_MessageTextAll("Last Hit!", 0, 0, 0, 1)
@@ -209,7 +226,7 @@ function GameMode:OnTreeCut(keys)
   local treeY = keys.tree_y
 
   local treeMap ={}
-  treeMap.eventName = "TreeEaten"
+  treeMap.eventName = "Dota2TreeCut"
   local jsonTable = json.encode(treemap)
   sendRequest(ip .. jsonTable)
 
@@ -295,6 +312,14 @@ function GameMode:OnEntityKilled( keys )
   local damagebits = keys.damagebits -- This might always be 0 and therefore useless
 
   -- Put code here to handle when an entity gets killed
+
+  if killedUnit:IsHero() then
+    print("Hero killed")
+    local killTable = {}
+    killTable.eventName = "Dota2HeroKilled"
+    killTable.victimID = keys.entindex_killed
+    killTable.killerID = keys.entindex_attacker
+  end
 end
 
 

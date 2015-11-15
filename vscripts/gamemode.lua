@@ -78,6 +78,7 @@ end
 ]]
 function GameMode:OnFirstPlayerLoaded()
   DebugPrint("[BAREBONES] First Player has loaded")
+
 end
 
 --[[
@@ -86,6 +87,9 @@ end
 ]]
 function GameMode:OnAllPlayersLoaded()
   DebugPrint("[BAREBONES] All Players have loaded into the game")
+  local loadedTable = {}
+  loadedTable.eventName = "Dota2PlayersLoaded"
+  loadedTable.status = 1
 end
 
 --[[
@@ -104,10 +108,12 @@ function GameMode:OnHeroInGame(hero)
   -- These lines will create an item and add it to the player, effectively ensuring they start with the item
   --local item = CreateItem("item_example_item", hero, hero)
   --hero:AddItem(item)
-  print("Spawned Hero's PlayerID: " .. hero:GetPlayerID() .. "Hero Index: " .. PlayerResource:GetPlayer(hero:GetPlayerID()):GetAssignedHero())
+  --print("Spawned Hero's PlayerID: " .. hero:GetPlayerID() .. "Hero Index: " .. hero:GetEntityIndex())
   local spawnTable = {}
-  spawnTable.eventName = "PlayerSpawned"
+  spawnTable.eventName = "Dota2PlayerSpawned"
   spawnTable.playerID = hero:GetPlayerID()
+  spawnTable.heroID = hero:GetEntityIndex()
+  spawnTable.heroTeam = PlayerResource:GetTeam(spawnTable.playerID)
   jsonTable = json.encode(spawnTable)
   sendRequest(ip .. jsonTable)
 
