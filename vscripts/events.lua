@@ -143,7 +143,6 @@ function GameMode:OnAbilityUsed(keys)
   local jsonTable = json.encode(abilityTable)
   sendRequest(ip .. jsonTable)
 end
-
 -- A non-player entity (necro-book, chen creep, etc) used an ability
 function GameMode:OnNonPlayerUsedAbility(keys)
   DebugPrint('[BAREBONES] OnNonPlayerUsedAbility')
@@ -213,7 +212,6 @@ function GameMode:OnLastHit(keys)
   lastHitTable.killedEntID = key.EntKilled
 
   local jsonTable = json.encode(lastHitTable)
-  UTIL_MessageTextAll("Last Hit!", 0, 0, 0, 1)
   sendRequest(ip .. jsonTable)
 end
 
@@ -319,6 +317,8 @@ function GameMode:OnEntityKilled( keys )
     killTable.eventName = "Dota2HeroKilled"
     killTable.victimID = keys.entindex_killed
     killTable.killerID = keys.entindex_attacker
+    jsonTable = json.encode(killTable)
+    sendRequest(ip .. jsonTable)
   end
 end
 
