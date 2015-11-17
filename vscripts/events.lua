@@ -322,6 +322,29 @@ function GameMode:OnEntityKilled( keys )
     jsonTable = json.encode(killTable)
     sendRequest(ip .. jsonTable)
   end
+
+    --handle Gold change
+  local heroes = HeroList:GetAllHeroes()
+  for i,v in pairs(heroes) do
+    local networth = v:GetGold() + PlayerResource:GetTotalGoldSpent(v:GetPlayerID())
+    local xp = PlayerResource:GetTotalEarnedXP(v:GetPlayerID())
+    --For debugging
+    --print("Hero: " .. v:GetPlayerID() .. "Networth: " .. networth .. " XP: " .. xp) 
+
+    --sending the networth
+    local networthTable = {}
+    networthTable.eventName = "Dota2Networth"
+    networthTable.playerID = v:GetPlayerID()
+    networthTable.networth = networth
+    sendRequest(ip .. json.encode(networthTable))
+
+    --sending the xp change
+    local xpTable = {}
+    xpTable.eventName = "Dota2XP"
+    xpTable.playerID = v:GetPlayerID()
+    xpTable.xp = xp
+    sendRequest(ip .. json.encode(xpTable))
+  end
 end
 
 
