@@ -112,7 +112,6 @@ function GameMode:OnHeroInGame(hero)
   local spawnTable = {}
   spawnTable.eventName = "Dota2PlayerSpawned"
   spawnTable.playerID = hero:GetPlayerID()
-  spawnTable.heroID = hero:GetEntityIndex()
   spawnTable.heroTeam = PlayerResource:GetTeam(spawnTable.playerID)
   jsonTable = json.encode(spawnTable)
   sendRequest(ip .. jsonTable)

@@ -50,12 +50,20 @@ function GameMode:OnNPCSpawned(keys)
   GameMode:_OnNPCSpawned(keys)
 
   local npc = EntIndexToHScript(keys.entindex)
-
   local spawnTable = {}
-  spawnTable.eventName = "Dota2NPCSpawn"
-  spawnTable.entIndex = keys.entindex
+
+  if npc:IsHero() then
+    spawnTable.eventName = "Dota2HeroSpawned"
+    spawnTable.playerID = npc:GetPlayerID() 
+  else
+    spawnTable.eventName = "Dota2NPCSpawn"
+    spawnTable.entIndex = keys.entindex
+  end
+
   local address = ip .. json.encode(spawnTable)
   sendRequest(address)
+
+
 end
 
 -- An entity somewhere has been hurt.  This event fires very often with many units so don't do too many expensive
@@ -87,13 +95,39 @@ function GameMode:OnItemPickedUp(keys)
   local itemEntity = EntIndexToHScript(keys.ItemEntityIndex)
   local player = PlayerResource:GetPlayer(keys.PlayerID)
   local itemname = keys.itemname
+
   local pickUpTable = {}
   pickUpTable.eventName = "Dota2ItemPickUp"
   pickUpTable.playerID = keys.PlayerID
   pickUpTable.itemCost = itemEntity:GetCost()
   pickUpTable.currentGold = PlayerResource:GetGold(keys.Play)
+  
   local jsonTable = json.encode(pickUpTable)
   sendRequest(ip .. jsonTable)
+
+      --handle Gold change
+  local heroes = HeroList:GetAllHeroes()
+  for i,v in pairs(heroes) do
+    --local networth = v:GetGold() + PlayerResource:GetTotalGoldSpent(v:GetPlayerID())
+    local xp = PlayerResource:GetTotalEarnedXP(v:GetPlayerID())
+    --For debugging
+    --print("Hero: " .. v:GetPlayerID() .. "Networth: " .. networth .. " XP: " .. xp) 
+    local networth = 0
+    for i = 0, 5, 1 do
+      if v:GetItemInSlot(i) then
+        local item = v:GetItemInSlot(i)
+        networth = networth + item:GetCost()
+      end
+    end
+    networth = networth + v:GetGold()
+
+    --sending the networth
+    local networthTable = {}
+    networthTable.eventName = "Dota2Networth"
+    networthTable.playerID = v:GetPlayerID()
+    networthTable.networth = networth
+    sendRequest(ip .. json.encode(networthTable))
+  end
 end
 
 -- A player has reconnected to the game.  This function can be used to repaint Player-based particles or change
@@ -125,6 +159,30 @@ function GameMode:OnItemPurchased( keys )
   itemBuyTable.currentGold = PlayerResource:GetGold(plyID)
   local jsonTable = json.encode(itemBuyTable)
   sendRequest(ip .. jsonTable)
+
+    --handle Gold change
+  local heroes = HeroList:GetAllHeroes()
+  for i,v in pairs(heroes) do
+    --local networth = v:GetGold() + PlayerResource:GetTotalGoldSpent(v:GetPlayerID())
+    local xp = PlayerResource:GetTotalEarnedXP(v:GetPlayerID())
+    --For debugging
+    --print("Hero: " .. v:GetPlayerID() .. "Networth: " .. networth .. " XP: " .. xp) 
+    local networth = 0
+    for i = 0, 5, 1 do
+      if v:GetItemInSlot(i) then
+        local item = v:GetItemInSlot(i)
+        networth = networth + item:GetCost()
+      end
+    end
+    networth = networth + v:GetGold()
+    print("Networth for: " .. v:GetPlayerID() .. " Gold: " .. networth )
+    --sending the networth
+    local networthTable = {}
+    networthTable.eventName = "Dota2Networth"
+    networthTable.playerID = v:GetPlayerID()
+    networthTable.networth = networth
+    sendRequest(ip .. json.encode(networthTable))
+  end
   
 end
 
@@ -139,6 +197,7 @@ function GameMode:OnAbilityUsed(keys)
   local abilityTable = {}
   abilityTable.eventName = "Dota2AbilityUsed"
   abilityTable.playerID = keys.PlayerID
+  abilityTable.abilityName = abilityname
 
   local jsonTable = json.encode(abilityTable)
   sendRequest(ip .. jsonTable)
@@ -188,7 +247,7 @@ function GameMode:OnPlayerLevelUp(keys)
 
   local levelUpTable = {}
   levelUpTable.eventName = "Dota2LevelUp"
-  levelUpTable.entIndex = keys.player
+  levelUpTable.playerID = keys.player
   levelUpTable.entLevel = level
   local jsonTable = json.encode(levelUpTable)
   sendRequest(ip .. jsonTable)
@@ -314,11 +373,10 @@ function GameMode:OnEntityKilled( keys )
   -- Put code here to handle when an entity gets killed
 
   if killedUnit:IsHero() then
-    print("Hero killed")
+    print("Hero killed " .. keys.entindex_killed)
     local killTable = {}
     killTable.eventName = "Dota2HeroKilled"
-    killTable.victimID = keys.entindex_killed
-    killTable.killerID = keys.entindex_attacker
+    killTable.PlayerID = killedUnit:GetPlayerID()
     jsonTable = json.encode(killTable)
     sendRequest(ip .. jsonTable)
   end
@@ -326,10 +384,18 @@ function GameMode:OnEntityKilled( keys )
     --handle Gold change
   local heroes = HeroList:GetAllHeroes()
   for i,v in pairs(heroes) do
-    local networth = v:GetGold() + PlayerResource:GetTotalGoldSpent(v:GetPlayerID())
+    --local networth = v:GetGold() + PlayerResource:GetTotalGoldSpent(v:GetPlayerID())
     local xp = PlayerResource:GetTotalEarnedXP(v:GetPlayerID())
     --For debugging
     --print("Hero: " .. v:GetPlayerID() .. "Networth: " .. networth .. " XP: " .. xp) 
+    local networth = 0
+    for i = 0, 5, 1 do
+      if v:GetItemInSlot(i) then
+        local item = v:GetItemInSlot(i)
+        networth = networth + item:GetCost()
+      end
+    end
+    networth = networth + v:GetGold()
 
     --sending the networth
     local networthTable = {}
