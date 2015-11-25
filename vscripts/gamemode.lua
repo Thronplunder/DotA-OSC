@@ -90,6 +90,8 @@ function GameMode:OnAllPlayersLoaded()
   local loadedTable = {}
   loadedTable.eventName = "Dota2PlayersLoaded"
   loadedTable.status = 1
+  local jsonTable = json.encode(loadedTable)
+  sendRequest(ip .. jsonTable)
 end
 
 --[[
@@ -109,10 +111,12 @@ function GameMode:OnHeroInGame(hero)
   --local item = CreateItem("item_example_item", hero, hero)
   --hero:AddItem(item)
   --print("Spawned Hero's PlayerID: " .. hero:GetPlayerID() .. "Hero Index: " .. hero:GetEntityIndex())
+
   local spawnTable = {}
   spawnTable.eventName = "Dota2PlayerSpawned"
   spawnTable.playerID = hero:GetPlayerID()
-  spawnTable.heroTeam = PlayerResource:GetTeam(spawnTable.playerID)
+  spawnTable.playerTeam = PlayerResource:GetTeam(spawnTable.playerID)
+  spawnTable.networth = hero:GetGold()
   jsonTable = json.encode(spawnTable)
   sendRequest(ip .. jsonTable)
 
