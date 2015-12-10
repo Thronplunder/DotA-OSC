@@ -267,7 +267,7 @@ function GameMode:OnLastHit(keys)
   local lastHitTable = {}
   lastHitTable.eventName = "Dota2LastHit"
   lastHitTable.playerID = keys.PlayerID
-  lastHitTable.heroKill = isHeroKill
+  lastHitTable.heroKill = keys.HeroKill
   lastHitTable.killedEntID = keys.EntKilled
 
   local jsonTable = json.encode(lastHitTable)
