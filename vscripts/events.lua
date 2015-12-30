@@ -55,6 +55,8 @@ function GameMode:OnNPCSpawned(keys)
   if npc:IsHero() then
     spawnTable.eventName = "Dota2HeroSpawned"
     spawnTable.playerID = npc:GetPlayerID() 
+    spawnTable.xPos = npc:GetCenter()[1]
+    spawnTable.yPos = npc:GetCenter()[2]
   else
     spawnTable.eventName = "Dota2NPCSpawn"
     spawnTable.entIndex = keys.entindex
@@ -101,6 +103,8 @@ function GameMode:OnItemPickedUp(keys)
   pickUpTable.playerID = keys.PlayerID
   pickUpTable.itemCost = itemEntity:GetCost()
   pickUpTable.currentGold = PlayerResource:GetGold(keys.Play)
+  pickUpTable.xPos = heroEntity:GetCenter()[1]
+  pickUpTable.yPos = heroEntity;GetCenter()[2]
   
   local jsonTable = json.encode(pickUpTable)
   sendRequest(ip .. jsonTable)

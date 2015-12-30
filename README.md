@@ -21,9 +21,12 @@ The Events sent and the data, that comes with them.
 *Dota2PlayersLoaded*   
 Is sent once, when all players are loaded into the game.   
 Sent information:  
-- status: a bool, that is alway true and only there, because i have to send at least one thing  
+- status: a bool, that is alway true and only there, because i have to send at least one thing 
+- xSize: the size of the map on the x-axis
+- ySize: the size of the map on the y-axis
 
-*Dota2PlayerLoaded*  
+
+*Dota2PlayerSpawned*  
 Is sent everytime a player's hero spawns for the first time in the game. usually, when the picking phase ends.  
 Sent information:  
 - playerID: the ID of the player, that got his hero spawned
@@ -99,3 +102,10 @@ Triggers every time someone gained XP.
 Sent information: 
 - playerID: the ID of the player that gained XP
 - xp: the amount of xp the player gained in total
+
+*Dota2Position*
+Triggers every 5 seconds and updates the position of all the heroes ingame.  
+Send information:
+- playerID: the ID of the player owning this hero
+- x: the x-coordinate of the hero
+- y: the y-coordinate of the hero 

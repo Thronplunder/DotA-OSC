@@ -89,7 +89,9 @@ function GameMode:OnAllPlayersLoaded()
   DebugPrint("[BAREBONES] All Players have loaded into the game")
   local loadedTable = {}
   loadedTable.eventName = "Dota2PlayersLoaded"
-  loadedTable.status = 1
+  loadedTable.status = true
+  loadedTable.xSize = GetWorldMaxX() - GetWorldMinX()
+  loadedTable.ySize = GetWorldMaxY() - GetWorldMinY()
   local jsonTable = json.encode(loadedTable)
   sendRequest(ip .. jsonTable)
 end
