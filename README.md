@@ -103,9 +103,9 @@ Sent information:
 - playerID: the ID of the player that gained XP
 - xp: the amount of xp the player gained in total
 
-*Dota2Position*
+*Dota2Position*  
 Triggers every 5 seconds and updates the position of all the heroes ingame.  
-Send information:
+Sent information:
 - playerID: the ID of the player owning this hero
 - x: the x-coordinate of the hero
 - y: the y-coordinate of the hero 
