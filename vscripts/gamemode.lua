@@ -138,10 +138,20 @@ end
 function GameMode:OnGameInProgress()
   DebugPrint("[BAREBONES] The game has officially begun")
 
-  Timers:CreateTimer(30, -- Start this timer 30 game-time seconds later
+  Timers:CreateTimer(0, -- Start this timer 30 game-time seconds later
     function()
-      DebugPrint("This function is called 30 seconds after the game begins, and every 30 seconds thereafter")
-      return 30.0 -- Rerun this timer every 30 game-time seconds 
+      DebugPrint("This function is called 5 seconds after the game begins, and every 30 seconds thereafter")
+      heroes = HeroList:GetAllHeroes()
+      for i, v in pairs(heroes) do
+        positionTable = {}
+        positionTable.eventName = "Dota2Position"
+        positionTable.playerID = v:GetPlayerID()
+        positionTable.xPos = v:GetAbsOrigin():Normalized().x
+        positionTable.yPos = v:GetAbsOrigin():Normalized().y
+        jsonTable = json.encode(positionTable)
+        sendRequest(ip .. jsonTable)
+      end
+      return 5.0 -- Rerun this timer every 30 game-time seconds 
     end)
 end
 
