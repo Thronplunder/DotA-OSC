@@ -1,4 +1,4 @@
-# DotA-OSC 0.01
+# DotaOSC 0.01
 ##Description
 This is the scripts Folder of a DotA custom map, that changes nothing about the game itself, but catches several events, turns some data into a json object, appends it to a http requests 
 and sends it to a local running Node.js http Server, that then processes it further into OSC messages. 
