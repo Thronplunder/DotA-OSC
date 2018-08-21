@@ -1,141 +1,48 @@
---[[ rpg_example game mode ]]
+-- This is the entry-point to your game mode and should be used primarily to precache models/particles/sounds/etc
 
-print( "Entering rpg_example's addon_game_mode.lua file." )
-
---------------------------------------------------------------------------------
--- Integer constants
---------------------------------------------------------------------------------
-_G.nGOOD_TEAM = 2
-_G.nBAD_TEAM = 3
-_G.nNEUTRAL_TEAM = 4
-_G.nDOTA_MAX_ABILITIES = 16
-_G.nHERO_MAX_LEVEL = 25
-
-_G.nROAMER_MAX_DIST_FROM_SPAWN = 2048
-_G.nCAMPER_MAX_DIST_FROM_SPAWN = 256
-_G.nPATROLLER_MAX_DIST_FROM_SPAWN = 128
-_G.nBOSS_MAX_DIST_FROM_SPAWN = 0
-_G.nCREATURE_RESPAWN_TIME = 60
-
-------------------------------------------------------------------------------------------------------------------------------------------------------
--- RPGExample class
-------------------------------------------------------------------------------------------------------------------------------------------------------
-if CRPGExample == nil then
-	_G.CRPGExample = class({}) -- put CRPGExample in the global scope
-	--refer to: http://stackoverflow.com/questions/6586145/lua-require-with-global-local
-end
-
-------------------------------------------------------------------------------------------------------------------------------------------------------
--- Required .lua files, which just exist to help organize functions contained in our addon.  Make sure to call these beneath the mode's class creation.
-------------------------------------------------------------------------------------------------------------------------------------------------------
-require( "utility_functions" ) -- require utility_functions first since some of the other required files may use its functions
-require( "events" )
-require( "rpg_example_spawning" )
-require( "worlditem_spawning" )
-
-------------------------------------------------------------------------------------------------------------------------------------------------------
--- Precache files and folders
-------------------------------------------------------------------------------------------------------------------------------------------------------
+require('internal/util')
+require('gamemode')
+print("hallo welt")
 function Precache( context )
-    GameRules.rpg_example = CRPGExample()
-    GameRules.rpg_example:PrecacheSpawners( context )
-    GameRules.rpg_example:PrecacheItemSpawners( context )
+--[[
+  This function is used to precache resources/units/items/abilities that will be needed
+  for sure in your game and that will not be precached by hero selection.  When a hero
+  is selected from the hero selection screen, the game will precache that hero's assets,
+  any equipped cosmetics, and perform the data-driven precaching defined in that hero's
+  precache{} block, as well as the precache{} block for any equipped abilities.
 
-	PrecacheResource( "particle", "particles/addons_gameplay/player_deferred_light.vpcf", context )
-	PrecacheResource( "particle", "particles/hw_fx/hw_rosh_fireball_fire_launch.vpcf", context )
+  See GameMode:PostLoadPrecache() in gamemode.lua for more information
+  ]]
 
-    PrecacheResource( "particle", "particles/units/heroes/hero_phantom_assassin/phantom_assassin_crit_impact.vpcf", context )
-	PrecacheResource( "particle", "particles/units/heroes/hero_life_stealer/life_stealer_infest_emerge_bloody.vpcf", context )
+  DebugPrint("[BAREBONES] Performing pre-load precache")
 
-	PrecacheResource( "soundfile", "soundevents/game_sounds_main.vsndevts", context )
-	PrecacheResource( "soundfile", "soundevents/game_sounds_triggers.vsndevts", context )
+  -- Particles can be precached individually or by folder
+  -- It it likely that precaching a single particle system will precache all of its children, but this may not be guaranteed
+  --PrecacheResource("particle", "particles/econ/generic/generic_aoe_explosion_sphere_1/generic_aoe_explosion_sphere_1.vpcf", context)
+  --PrecacheResource("particle_folder", "particles/test_particle", context)
+
+  -- Models can also be precached by folder or individually
+  -- PrecacheModel should generally used over PrecacheResource for individual models
+ -- PrecacheResource("model_folder", "particles/heroes/antimage", context)
+  --PrecacheResource("model", "particles/heroes/viper/viper.vmdl", context)
+ -- PrecacheModel("models/heroes/viper/viper.vmdl", context)
+
+  -- Sounds can precached here like anything else
+  PrecacheResource("soundfile", "soundevents/game_sounds_heroes/game_sounds_gyrocopter.vsndevts", context)
+
+  -- Entire items can be precached by name
+  -- Abilities can also be precached in this way despite the name
+  --PrecacheItemByNameSync("example_ability", context)
+  --PrecacheItemByNameSync("item_example_item", context)
+
+  -- Entire heroes (sound effects/voice/models/particles) can be precached with PrecacheUnitByNameSync
+  -- Custom units from npc_units_custom.txt can also have all of their abilities and precache{} blocks precached in this way
+  --PrecacheUnitByNameSync("npc_dota_hero_ancient_apparition", context)
+  --PrecacheUnitByNameSync("npc_dota_hero_enigma", context)
 end
 
---------------------------------------------------------------------------------
--- Activate RPGExample mode
---------------------------------------------------------------------------------
+-- Create the game mode when we activate
 function Activate()
-	-- When you don't have access to 'self', use 'GameRules.rpg_example' instead
-		-- example Function call: GameRules.rpg_example:Function()
-		-- example Var access: GameRules.rpg_example.m_Variable = 1
-    GameRules.rpg_example:InitGameMode()
-end
-
---------------------------------------------------------------------------------
--- Init
---------------------------------------------------------------------------------
-function CRPGExample:InitGameMode()
-	print( "Entering CRPGExample:InitGameMode" )
-	self._GameMode = GameRules:GetGameModeEntity()
-
-	self._GameMode:SetAnnouncerDisabled( true )
-	self._GameMode:SetUnseenFogOfWarEnabled( true )
-	self._GameMode:SetFixedRespawnTime( 4 )
-	
-	GameRules:SetGoldPerTick( 0 )
-	GameRules:SetPreGameTime( 0 )
-	GameRules:SetCustomGameSetupTimeout( 0 ) -- skip the custom team UI with 0, or do indefinite duration with -1
-	GameRules:SetCustomGameSetupAutoLaunchDelay( 0 )
-	GameRules:SetCustomGameAccountRecordSaveFunction( Dynamic_Wrap( CRPGExample, "OnSaveAccountRecord" ), self )
-
-	ListenToGameEvent( "game_rules_state_change", Dynamic_Wrap( CRPGExample, 'OnGameRulesStateChange' ), self )
-	ListenToGameEvent( "npc_spawned", Dynamic_Wrap( CRPGExample, "OnNPCSpawned" ), self )
-	ListenToGameEvent( "entity_killed", Dynamic_Wrap( CRPGExample, "OnEntityKilled" ), self )
-	ListenToGameEvent( "dota_player_gained_level", Dynamic_Wrap( CRPGExample, "OnPlayerGainedLevel" ), self )
-	ListenToGameEvent( "dota_item_picked_up", Dynamic_Wrap( CRPGExample, "OnItemPickedUp" ), self )
-
-	self._tPlayerHeroInitStatus = {}	
-	self._tPlayerDeservesTPAtSpawn = {}	
-	self._tPlayerIDToAccountRecord = {}
-
-	for nPlayerID = 0, DOTA_MAX_PLAYERS do
-		self._tPlayerHeroInitStatus[ nPlayerID ] = false
-		self._tPlayerDeservesTPAtSpawn[ nPlayerID ] = false
-	end
-
-	self:SetupSpawners()
-	self:SetupItemSpawners()
-
-	self._GameMode:SetContextThink( "CRPGExample:GameThink", function() return self:GameThink() end, 0 )
-end
-
---------------------------------------------------------------------------------
--- Main Think
---------------------------------------------------------------------------------
-function CRPGExample:GameThink()
-	local flThinkTick = 0.2
-
-	return flThinkTick
-end
-
----------------------------------------------------------------------------
--- CreateWorldItemOnUnit
----------------------------------------------------------------------------
-function CRPGExample:CreateWorldItemOnUnit( sItemName, unit )
-    local newItem = CreateItem( sItemName, nil, nil )
-	CreateItemOnPositionSync( unit:GetAbsOrigin(), newItem )
-end
-
----------------------------------------------------------------------------
--- CreateWorldItemOnPosition
----------------------------------------------------------------------------
-function CRPGExample:CreateWorldItemOnPosition( sItemName, vPos )
-    local newItem = CreateItem( sItemName, nil, nil )
-	CreateItemOnPositionSync( vPos, newItem )
-	print( "Creating item " .. newItem:GetName() .. " on position: " .. tostring( vPos ) )
-end
-
----------------------------------------------------------------------------
--- LaunchWorldItemFromUnit
----------------------------------------------------------------------------
-function CRPGExample:LaunchWorldItemFromUnit( sItemName, flLaunchHeight, flDuration, hUnit )
-    local newItem = CreateItem( sItemName, nil, nil )
-    local newWorldItem = CreateItemOnPositionSync( hUnit:GetOrigin(), newItem )
-	newItem:LaunchLoot( false, flLaunchHeight, flDuration, hUnit:GetOrigin() + RandomVector( RandomFloat( 200, 300 ) ) )
-	print( "Launching " .. newItem:GetName() .. " near " .. hUnit:GetUnitName() )
-	self._GameMode:SetContextThink( "CRPGExample:Think_PlayItemLandSound", function() return self:Think_PlayItemLandSound() end, flDuration )
-end
-
-function CRPGExample:Think_PlayItemLandSound()
-	EmitGlobalSound( "ui.inv_drop_highvalue" )
+  GameRules.GameMode = GameMode()
+  GameRules.GameMode:InitGameMode()
 end

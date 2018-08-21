@@ -1,230 +1,511 @@
---[[ Events ]]
+-- This file contains all barebones-registered events and has already set up the passed-in parameters for your use.
+-- Do not remove the GameMode:_Function calls in these events as it will mess with the internal barebones systems.
 
---------------------------------------------------------------------------------
--- GameEvent:OnGameRulesStateChange
---------------------------------------------------------------------------------
-function CRPGExample:OnGameRulesStateChange()
-	local nNewState = GameRules:State_Get()
+-- external libraries  and odther declarations
+json = require("json/dkjson")
+playerIDs = {}
 
-	if nNewState == DOTA_GAMERULES_STATE_CUSTOM_GAME_SETUP then
-		print( "OnGameRulesStateChange: Custom Game Setup" )
-		GameRules:SetTimeOfDay( 0.25 )
-		SendToServerConsole( "dota_daynightcycle_pause 1" )
-		for nPlayerID = 0, DOTA_MAX_TEAM_PLAYERS do
-			PlayerResource:SetCustomTeamAssignment( nPlayerID, 2 ) -- put each player on Radiant team
-
-			self:OnLoadAccountRecord( nPlayerID )
-		end
-
-	elseif nNewState == DOTA_GAMERULES_STATE_HERO_SELECTION then
-		print( "OnGameRulesStateChange: Hero Selection" )
-		self:InitializeBuildingOwnership()
-		self:SpawnCreatures()
-		self:SpawnItems()
-
-	elseif nNewState == DOTA_GAMERULES_STATE_PRE_GAME then
-		print( "OnGameRulesStateChange: Pre Game" )
-
-	elseif nNewState == DOTA_GAMERULES_STATE_GAME_IN_PROGRESS then
-		print( "OnGameRulesStateChange: Game In Progress" )
-
-	end
+ip = "http://127.0.0.1:8082/"
+print("events")
+function sendRequest(address)
+  print("Sending: " .. address)
+  CreateHTTPRequest("GET", address):Send(function (response)
+      print( "GET response:\n" )
+      for k,v in pairs( response ) do
+       -- UTIL_MessageTextAll(string message, int r, int g, int b, int a)string.format( "%s : %s\n", k, v )
+      end
+    end)
 end
 
---------------------------------------------------------------------------------
--- GameEvent: OnNPCSpawned
---------------------------------------------------------------------------------
-function CRPGExample:OnNPCSpawned( event )
-	hSpawnedUnit = EntIndexToHScript( event.entindex )
+--template continues
 
-	if hSpawnedUnit:IsOwnedByAnyPlayer() and hSpawnedUnit:IsRealHero() then
-		local hPlayerHero = hSpawnedUnit
-		self._GameMode:SetContextThink( "self:Think_InitializePlayerHero( hPlayerHero )", function() return self:Think_InitializePlayerHero( hPlayerHero ) end, 0 )
-	end
+-- Cleanup a player when they leave
+function GameMode:OnDisconnect(keys)
+  DebugPrint('[BAREBONES] Player Disconnected ' .. tostring(keys.userid))
+  DebugPrintTable(keys)
+
+  local name = keys.name
+  local networkid = keys.networkid
+  local reason = keys.reason
+  local userid = keys.userid
+
+end
+-- The overall game state has changed
+function GameMode:OnGameRulesStateChange(keys)
+  DebugPrint("[BAREBONES] GameRules State Changed")
+  DebugPrintTable(keys)
+
+  -- This internal handling is used to set up main barebones functions
+  GameMode:_OnGameRulesStateChange(keys)
+
+  local newState = GameRules:State_Get()
 end
 
---------------------------------------------------------------------------------
--- GameEvent: OnEntityKilled
---------------------------------------------------------------------------------
-function CRPGExample:OnEntityKilled( event )
-	hDeadUnit = EntIndexToHScript( event.entindex_killed )
-	hAttackerUnit = EntIndexToHScript( event.entindex_attacker )
+-- An NPC has spawned somewhere in game.  This includes heroes
+function GameMode:OnNPCSpawned(keys)
+  DebugPrint("[BAREBONES] NPC Spawned")
+  DebugPrintTable(keys)
 
-	if hDeadUnit:IsCreature() then
-		self:PlayDeathSound( hDeadUnit )
-		self:GrantItemDrop( hDeadUnit )
+  -- This internal handling is used to set up main barebones functions
+  GameMode:_OnNPCSpawned(keys)
 
-		if hAttackerUnit.PlayKillEffect ~= nil then
-			hAttackerUnit:PlayKillEffect( hDeadUnit )
-		end
-	end
+  local npc = EntIndexToHScript(keys.entindex)
+  local spawnTable = {}
+
+  if npc:IsHero() then
+    spawnTable.eventName = "Dota2HeroSpawned"
+    spawnTable.playerID = npc:GetPlayerID() 
+  else
+    spawnTable.eventName = "Dota2NPCSpawn"
+    spawnTable.entIndex = keys.entindex
+  end
+
+  local address = ip .. json.encode(spawnTable)
+  sendRequest(address)
+
+
 end
 
---------------------------------------------------------------------------------
--- GrantItemDrop
---------------------------------------------------------------------------------
-function CRPGExample:GrantItemDrop( hDeadUnit )
-	if hDeadUnit.itemTable == nil then
-		return
-	end
+-- An entity somewhere has been hurt.  This event fires very often with many units so don't do too many expensive
+-- operations here
+function GameMode:OnEntityHurt(keys)
+  --DebugPrint("[BAREBONES] Entity Hurt")
+  --DebugPrintTable(keys)
 
-	local flMaxHeight = RandomFloat( 300, 450 )
+  local damagebits = keys.damagebits -- This might always be 0 and therefore useless
+  if keys.entindex_attacker ~= nil and keys.entindex_killed ~= nil then
+    local entCause = EntIndexToHScript(keys.entindex_attacker)
+    local entVictim = EntIndexToHScript(keys.entindex_killed)
 
-	if RandomFloat( 0, 1 ) > 0.6 then
-		local sItemName = GetRandomElement( hDeadUnit.itemTable )
-		self:LaunchWorldItemFromUnit( sItemName, flMaxHeight, 0.5, hDeadUnit )
-	end
+    -- The ability/item used to damage, or nil if not damaged by an item/ability
+    local damagingAbility = nil
+
+    if keys.entindex_inflictor ~= nil then
+      damagingAbility = EntIndexToHScript( keys.entindex_inflictor )
+    end
+  end
 end
 
---------------------------------------------------------------------------------
--- PlayDeathSound
---------------------------------------------------------------------------------
-function CRPGExample:PlayDeathSound( hDeadUnit )
-	if hDeadUnit:GetUnitName() == "npc_dota_creature_zombie" or hDeadUnit:GetUnitName() == "npc_dota_creature_zombie_crawler" then
-		EmitSoundOn( "Zombie.Death", hDeadUnit )
+-- An item was picked up off the ground
+function GameMode:OnItemPickedUp(keys)
+  DebugPrint( '[BAREBONES] OnItemPickedUp' )
+  DebugPrintTable(keys)
+  print("item picked up")
+  local heroEntity = EntIndexToHScript(keys.HeroEntityIndex)
+  local itemEntity = EntIndexToHScript(keys.ItemEntityIndex)
+  local player = PlayerResource:GetPlayer(keys.PlayerID)
+  local itemname = keys.itemname
 
-	elseif hDeadUnit:GetUnitName() == "npc_dota_creature_bear" then
-		EmitSoundOn( "Bear.Death", hDeadUnit )
+  local pickUpTable = {}
+  pickUpTable.eventName = "Dota2ItemPickUp"
+  pickUpTable.playerID = keys.PlayerID
+  pickUpTable.itemCost = itemEntity:GetCost()
+  pickUpTable.currentGold = PlayerResource:GetGold(keys.Play)
+  
+  local jsonTable = json.encode(pickUpTable)
+  sendRequest(ip .. jsonTable)
 
-	elseif hDeadUnit:GetUnitName() == "npc_dota_creature_bear_large" then
-		EmitSoundOn( "BearLarge.Death", hDeadUnit )
+      --handle Gold change
+  local heroes = HeroList:GetAllHeroes()
+  for i,v in pairs(heroes) do
+    --local networth = v:GetGold() + PlayerResource:GetTotalGoldSpent(v:GetPlayerID())
+    local xp = PlayerResource:GetTotalEarnedXP(v:GetPlayerID())
+    --For debugging
+    --print("Hero: " .. v:GetPlayerID() .. "Networth: " .. networth .. " XP: " .. xp) 
+    local networth = 0
+    for i = 0, 5, 1 do
+      if v:GetItemInSlot(i) then
+        local item = v:GetItemInSlot(i)
+        networth = networth + item:GetCost()
+      end
+    end
+    networth = networth + v:GetGold()
 
-	end
+    --sending the networth
+    local networthTable = {}
+    networthTable.eventName = "Dota2Networth"
+    networthTable.playerID = v:GetPlayerID()
+    networthTable.networth = networth
+    sendRequest(ip .. json.encode(networthTable))
+  end
 end
 
---------------------------------------------------------------------------------
--- Think_InitializePlayerHero
---------------------------------------------------------------------------------
-function CRPGExample:Think_InitializePlayerHero( hPlayerHero )
-	if not hPlayerHero then
-		return 0.1
-	end
-
-	local nPlayerID = hPlayerHero:GetPlayerID()
-
-	if self._tPlayerHeroInitStatus[ nPlayerID ] == false then
-		hPlayerHero.PlayKillEffect = Juggernaut_PlayKillEffect
-		PlayerResource:SetCameraTarget( nPlayerID, hPlayerHero )
-		PlayerResource:SetOverrideSelectionEntity( nPlayerID, hPlayerHero )
-		PlayerResource:SetGold( nPlayerID, 0, true )
-		PlayerResource:SetGold( nPlayerID, 0, false )
-		hPlayerHero:HeroLevelUp( false )
-		hPlayerHero:UpgradeAbility( hPlayerHero:GetAbilityByIndex( 0 ) )
-		hPlayerHero:UpgradeAbility( hPlayerHero:GetAbilityByIndex( 1 ) )
-		hPlayerHero:SetIdleAcquire( false )
-
-		if self._tPlayerDeservesTPAtSpawn[ nPlayerID ] then
-			print( "Player deserves a TP at spawn: " .. nPlayerID )
-			local hTP = CreateItem( "item_teleport", hPlayerHero, hPlayerHero )
-			hTP:SetPurchaseTime( 0 )
-			hPlayerHero:AddItem( hTP )
-		end
-
-		if GetMapName() == "rpg_example" then
-			local nLightParticleID = ParticleManager:CreateParticle( "particles/addons_gameplay/player_deferred_light.vpcf", PATTACH_ABSORIGIN, hPlayerHero )
-			ParticleManager:SetParticleControlEnt( nLightParticleID, PATTACH_ABSORIGIN, hPlayerHero, PATTACH_ABSORIGIN, "attach_origin", hPlayerHero:GetAbsOrigin(), true )
-		end
-
-		self._tPlayerHeroInitStatus[ nPlayerID ] = true
-	end
+-- A player has reconnected to the game.  This function can be used to repaint Player-based particles or change
+-- state as necessary
+function GameMode:OnPlayerReconnect(keys)
+  DebugPrint( '[BAREBONES] OnPlayerReconnect' )
+  DebugPrintTable(keys) 
 end
 
---------------------------------------------------------------------------------
--- GameEvent: OnPlayerGainedLevel
---------------------------------------------------------------------------------
-function CRPGExample:OnPlayerGainedLevel( event )
-	local hPlayer = EntIndexToHScript( event.player )
-	local hPlayerHero = hPlayer:GetAssignedHero()
+-- An item was purchased by a player
+function GameMode:OnItemPurchased( keys )
+  DebugPrint( '[BAREBONES] OnItemPurchased' )
+  DebugPrintTable(keys)
+  print("Item purchased")
+  -- The playerID of the hero who is buying something
+  local plyID = keys.PlayerID
+  if not plyID then return end
 
-	hPlayerHero:SetHealth( hPlayerHero:GetMaxHealth() )
-	hPlayerHero:SetMana( hPlayerHero:GetMaxMana() )
+  -- The name of the item purchased
+  local itemName = keys.itemname 
+  
+  -- The cost of the item purchased
+  local itemcost = keys.itemcost
+
+  local itemBuyTable = {}
+  itemBuyTable.eventName = "Dota2ItemPurchased"
+  itemBuyTable.playerID = plyID
+  itemBuyTable.price = itemcost
+  itemBuyTable.currentGold = PlayerResource:GetGold(plyID)
+  local jsonTable = json.encode(itemBuyTable)
+  sendRequest(ip .. jsonTable)
+
+    --handle Gold change
+  local heroes = HeroList:GetAllHeroes()
+  for i,v in pairs(heroes) do
+    --local networth = v:GetGold() + PlayerResource:GetTotalGoldSpent(v:GetPlayerID())
+    local xp = PlayerResource:GetTotalEarnedXP(v:GetPlayerID())
+    --For debugging
+    --print("Hero: " .. v:GetPlayerID() .. "Networth: " .. networth .. " XP: " .. xp) 
+    local networth = 0
+    for i = 0, 5, 1 do
+      if v:GetItemInSlot(i) then
+        local item = v:GetItemInSlot(i)
+        networth = networth + item:GetCost()
+      end
+    end
+    networth = networth + v:GetGold()
+    print("Networth for: " .. v:GetPlayerID() .. " Gold: " .. networth )
+    --sending the networth
+    local networthTable = {}
+    networthTable.eventName = "Dota2Networth"
+    networthTable.playerID = v:GetPlayerID()
+    networthTable.networth = networth
+    sendRequest(ip .. json.encode(networthTable))
+  end
+  
 end
 
-function CRPGExample:OnItemPickedUp( event )
-	local hPlayerHero = EntIndexToHScript( event.HeroEntityIndex )
-	EmitGlobalSound( "ui.inv_equip_highvalue" )
+-- An ability was used by a player
+function GameMode:OnAbilityUsed(keys)
+  DebugPrint('[BAREBONES] AbilityUsed')
+  DebugPrintTable(keys)
+
+  local player = PlayerResource:GetPlayer(keys.PlayerID)
+  local abilityname = keys.abilityname
+
+  local abilityTable = {}
+  abilityTable.eventName = "Dota2AbilityUsed"
+  abilityTable.playerID = keys.PlayerID
+  abilityTable.abilityName = abilityname
+
+  local jsonTable = json.encode(abilityTable)
+  sendRequest(ip .. jsonTable)
+end
+-- A non-player entity (necro-book, chen creep, etc) used an ability
+function GameMode:OnNonPlayerUsedAbility(keys)
+  DebugPrint('[BAREBONES] OnNonPlayerUsedAbility')
+  DebugPrintTable(keys)
+
+  local abilityname=  keys.abilityname
 end
 
---------------------------------------------------------------------------------
--- GameEvent: OnSaveAccountRecord
---------------------------------------------------------------------------------
-function CRPGExample:OnSaveAccountRecord( nPlayerID )
+-- A player changed their name
+function GameMode:OnPlayerChangedName(keys)
+  DebugPrint('[BAREBONES] OnPlayerChangedName')
+  DebugPrintTable(keys)
 
-	print( "OnSaveAccountRecord: " .. nPlayerID );
-
-	return self._tPlayerIDToAccountRecord[nPlayerID]
+  local newName = keys.newname
+  local oldName = keys.oldName
 end
 
-function CRPGExample:RecordActivatedCheckpoint( nPlayerID, strCheckpoint )
-	tblAccountRecord = {}
-	if self._tPlayerIDToAccountRecord[nPlayerID] then
-		tblAccountRecord = self._tPlayerIDToAccountRecord[nPlayerID]
-	else
-		self._tPlayerIDToAccountRecord[nPlayerID] = tblAccountRecord
-	end
+-- A player leveled up an ability
+function GameMode:OnPlayerLearnedAbility( keys)
+  DebugPrint('[BAREBONES] OnPlayerLearnedAbility')
+  DebugPrintTable(keys)
 
-	if not tblAccountRecord["checkpoints"] then
-		tblAccountRecord["checkpoints"] = strCheckpoint
-	else
-		tblAccountRecord["checkpoints"] = tblAccountRecord["checkpoints"] .. "," .. strCheckpoint
-	end
+  local player = EntIndexToHScript(keys.player)
+  local abilityname = keys.abilityname
 end
 
-function CRPGExample:OnLoadAccountRecord( nPlayerID )
-	local tblAccountRecord = GameRules:GetPlayerCustomGameAccountRecord( nPlayerID )
-	if not tblAccountRecord then
-		return
-	end
+-- A channelled ability finished by either completing or being interrupted
+function GameMode:OnAbilityChannelFinished(keys)
+  DebugPrint('[BAREBONES] OnAbilityChannelFinished')
+  DebugPrintTable(keys)
 
-	print( "OnLoadAccountRecord: " .. nPlayerID );
-
-	-- Store off their account record, if found, we may be changing/saving it later
-	if tblAccountRecord then
-		PrintTable( tblAccountRecord, " " )
-		self._tPlayerIDToAccountRecord[nPlayerID] = tblAccountRecord
-	end
+  local abilityname = keys.abilityname
+  local interrupted = keys.interrupted == 1
 end
 
-function CRPGExample:InitializeBuildingOwnership()
-	local hStartBuilding = Entities:FindByName( nil, "checkpoint00_building" )
-	hStartBuilding:SetTeam( nGOOD_TEAM )
+-- A player leveled up
+function GameMode:OnPlayerLevelUp(keys)
+  DebugPrint('[BAREBONES] OnPlayerLevelUp')
+  DebugPrintTable(keys)
 
-	for nPlayerID, tblAccountRecord in pairs( self._tPlayerIDToAccountRecord ) do
-		if tblAccountRecord["checkpoints"] then
-			local tblCheckpoints = string.split( tblAccountRecord["checkpoints"], "," )
-			for k, strCheckpoint in pairs( tblCheckpoints ) do
-				local hBuilding = Entities:FindByName( nil, strCheckpoint .. "_building" )
-				if hBuilding then
-					hBuilding:SetTeam( nGOOD_TEAM )
+  local player = EntIndexToHScript(keys.player)
+  local level = keys.level
 
-					print( "Player has non-start checkpoint: " .. nPlayerID )
-					self._tPlayerDeservesTPAtSpawn[ nPlayerID ] = true
-				end
-			end
-		end
-	end
+  local levelUpTable = {}
+  levelUpTable.eventName = "Dota2LevelUp"
+  levelUpTable.playerID = player:GetPlayerID()
+  levelUpTable.entLevel = level
+  local jsonTable = json.encode(levelUpTable)
+  sendRequest(ip .. jsonTable)
+end
+
+-- A player last hit a creep, a tower, or a hero
+function GameMode:OnLastHit(keys)
+  DebugPrint('[BAREBONES] OnLastHit')
+  DebugPrintTable(keys)
+
+  local isFirstBlood = keys.FirstBlood == 1
+  local isHeroKill = keys.HeroKill == 1
+  local isTowerKill = keys.TowerKill == 1
+  local player = PlayerResource:GetPlayer(keys.PlayerID)
+  local killedEnt = EntIndexToHScript(keys.EntKilled)
+
+  local lastHitTable = {}
+  lastHitTable.eventName = "Dota2LastHit"
+  lastHitTable.playerID = keys.PlayerID
+  lastHitTable.heroKill = keys.HeroKill
+  lastHitTable.killedEntID = keys.EntKilled
+
+  local jsonTable = json.encode(lastHitTable)
+  sendRequest(ip .. jsonTable)
+end
+
+-- A tree was cut down by tango, quelling blade, etc
+function GameMode:OnTreeCut(keys)
+  DebugPrint('[BAREBONES] OnTreeCut')
+  DebugPrintTable(keys)
+
+  local treeX = keys.tree_x
+  local treeY = keys.tree_y
+
+  local treeTable ={}
+  treeTable.eventName = "Dota2TreeCut"
+  treeTable.xCoord = treeX
+  treeTable.yCoord = treeY
+  local jsonTable = json.encode(treeTable)
+  sendRequest(ip .. jsonTable)
+
+end
+
+-- A rune was activated by a player
+function GameMode:OnRuneActivated (keys)
+  DebugPrint('[BAREBONES] OnRuneActivated')
+  DebugPrintTable(keys)
+
+  local player = PlayerResource:GetPlayer(keys.PlayerID)
+  local rune = keys.rune
+
+  --[[ Rune Can be one of the following types
+  DOTA_RUNE_DOUBLEDAMAGE
+  DOTA_RUNE_HASTE
+  DOTA_RUNE_HAUNTED
+  DOTA_RUNE_ILLUSION
+  DOTA_RUNE_INVISIBILITY
+  DOTA_RUNE_BOUNTY
+  DOTA_RUNE_MYSTERY
+  DOTA_RUNE_RAPIER
+  DOTA_RUNE_REGENERATION
+  DOTA_RUNE_SPOOKY
+  DOTA_RUNE_TURBO
+  ]]
+end
+
+-- A player took damage from a tower
+function GameMode:OnPlayerTakeTowerDamage(keys)
+  DebugPrint('[BAREBONES] OnPlayerTakeTowerDamage')
+  DebugPrintTable(keys)
+
+  local player = PlayerResource:GetPlayer(keys.PlayerID)
+  local damage = keys.damage
+end
+
+-- A player picked a hero
+function GameMode:OnPlayerPickHero(keys)
+  DebugPrint('[BAREBONES] OnPlayerPickHero')
+  DebugPrintTable(keys)
+
+  local heroClass = keys.hero
+  local heroEntity = EntIndexToHScript(keys.heroindex)
+  local player = EntIndexToHScript(keys.player)
+end
+
+-- A player killed another player in a multi-team context
+function GameMode:OnTeamKillCredit(keys)
+  DebugPrint('[BAREBONES] OnTeamKillCredit')
+  DebugPrintTable(keys)
+
+  local killerPlayer = PlayerResource:GetPlayer(keys.killer_userid)
+  local victimPlayer = PlayerResource:GetPlayer(keys.victim_userid)
+  local numKills = keys.herokills
+  local killerTeamNumber = keys.teamnumber
+end
+
+-- An entity died
+function GameMode:OnEntityKilled( keys )
+  DebugPrint( '[BAREBONES] OnEntityKilled Called' )
+  DebugPrintTable( keys )
+
+  GameMode:_OnEntityKilled( keys )
+  
+
+  -- The Unit that was Killed
+  local killedUnit = EntIndexToHScript( keys.entindex_killed )
+  -- The Killing entity
+  local killerEntity = nil
+
+  if keys.entindex_attacker ~= nil then
+    killerEntity = EntIndexToHScript( keys.entindex_attacker )
+  end
+
+  -- The ability/item used to kill, or nil if not killed by an item/ability
+  local killerAbility = nil
+
+  if keys.entindex_inflictor ~= nil then
+    killerAbility = EntIndexToHScript( keys.entindex_inflictor )
+  end
+
+  local damagebits = keys.damagebits -- This might always be 0 and therefore useless
+
+  -- Put code here to handle when an entity gets killed
+
+  if killedUnit:IsHero() then
+    print("Hero killed " .. keys.entindex_killed)
+    local killTable = {}
+    killTable.eventName = "Dota2HeroKilled"
+    killTable.PlayerID = killedUnit:GetPlayerID()
+    jsonTable = json.encode(killTable)
+    sendRequest(ip .. jsonTable)
+  end
+
+    --handle Gold change
+  local heroes = HeroList:GetAllHeroes()
+  for i,v in pairs(heroes) do
+    --local networth = v:GetGold() + PlayerResource:GetTotalGoldSpent(v:GetPlayerID())
+    local xp = PlayerResource:GetTotalEarnedXP(v:GetPlayerID())
+    --For debugging
+    --print("Hero: " .. v:GetPlayerID() .. "Networth: " .. networth .. " XP: " .. xp) 
+    local networth = 0
+    for i = 0, 5, 1 do
+      if v:GetItemInSlot(i) then
+        local item = v:GetItemInSlot(i)
+        networth = networth + item:GetCost()
+      end
+    end
+    networth = networth + v:GetGold()
+
+    --sending the networth
+    local networthTable = {}
+    networthTable.eventName = "Dota2Networth"
+    networthTable.playerID = v:GetPlayerID()
+    networthTable.networth = networth
+    sendRequest(ip .. json.encode(networthTable))
+
+    --sending the xp change
+    local xpTable = {}
+    xpTable.eventName = "Dota2XP"
+    xpTable.playerID = v:GetPlayerID()
+    xpTable.xp = xp
+    sendRequest(ip .. json.encode(xpTable))
+  end
 end
 
 
-function PlayPACrit( hAttacker, hVictim )
-	local bloodEffect = "particles/units/heroes/hero_phantom_assassin/phantom_assassin_crit_impact.vpcf"
-	local nFXIndex = ParticleManager:CreateParticle( bloodEffect, PATTACH_CUSTOMORIGIN, nil )
-	ParticleManager:SetParticleControlEnt( nFXIndex, 0, hVictim, PATTACH_POINT_FOLLOW, "attach_hitloc", hVictim:GetAbsOrigin(), true )
-	ParticleManager:SetParticleControl( nFXIndex, 1, hVictim:GetAbsOrigin() )
-	local flHPRatio = math.min( 1.0, hVictim:GetMaxHealth() / 200 )
-	ParticleManager:SetParticleControlForward( nFXIndex, 1, RandomFloat( 0.5, 1.0 ) * flHPRatio * ( hAttacker:GetAbsOrigin() - hVictim:GetAbsOrigin() ):Normalized() )
-	ParticleManager:SetParticleControlEnt( nFXIndex, 10, hVictim, PATTACH_ABSORIGIN_FOLLOW, "", hVictim:GetAbsOrigin(), true )
-	ParticleManager:ReleaseParticleIndex( nFXIndex )
+
+-- This function is called 1 to 2 times as the player connects initially but before they 
+-- have completely connected
+function GameMode:PlayerConnect(keys)
+  DebugPrint('[BAREBONES] PlayerConnect')
+  DebugPrintTable(keys)
 end
 
-function PlayLifeStealerEmerge( hAttacker, hVictim )
-	ParticleManager:ReleaseParticleIndex( ParticleManager:CreateParticle( "particles/units/heroes/hero_life_stealer/life_stealer_infest_emerge_bloody.vpcf", PATTACH_ABSORIGIN_FOLLOW, hVictim ) )
+-- This function is called once when the player fully connects and becomes "Ready" during Loading
+function GameMode:OnConnectFull(keys)
+  DebugPrint('[BAREBONES] OnConnectFull')
+  DebugPrintTable(keys)
+
+  GameMode:_OnConnectFull(keys)
+  
+  local entIndex = keys.index+1
+  -- The Player entity of the joining user
+  local ply = EntIndexToHScript(entIndex)
+  
+  -- The Player ID of the joining player
+  local playerID = ply:GetPlayerID()
 end
 
-function Juggernaut_PlayKillEffect( self, hVictim )
-	if hVictim:GetMaxHealth() > 150 and RandomFloat( 0, 1 ) > 0.75 then
-		PlayLifeStealerEmerge( self, hVictim )
-	else
-		PlayPACrit( self, hVictim )
-	end
+-- This function is called whenever illusions are created and tells you which was/is the original entity
+function GameMode:OnIllusionsCreated(keys)
+  DebugPrint('[BAREBONES] OnIllusionsCreated')
+  DebugPrintTable(keys)
+
+  local originalEntity = EntIndexToHScript(keys.original_entindex)
+end
+
+-- This function is called whenever an item is combined to create a new item
+function GameMode:OnItemCombined(keys)
+  DebugPrint('[BAREBONES] OnItemCombined')
+  DebugPrintTable(keys)
+
+  -- The playerID of the hero who is buying something
+  local plyID = keys.PlayerID
+  if not plyID then return end
+  local player = PlayerResource:GetPlayer(plyID)
+
+  -- The name of the item purchased
+  local itemName = keys.itemname 
+  
+  -- The cost of the item purchased
+  local itemcost = keys.itemcost
+end
+
+-- This function is called whenever an ability begins its PhaseStart phase (but before it is actually cast)
+function GameMode:OnAbilityCastBegins(keys)
+  DebugPrint('[BAREBONES] OnAbilityCastBegins')
+  DebugPrintTable(keys)
+
+  local player = PlayerResource:GetPlayer(keys.PlayerID)
+  local abilityName = keys.abilityname
+end
+
+-- This function is called whenever a tower is killed
+function GameMode:OnTowerKill(keys)
+  DebugPrint('[BAREBONES] OnTowerKill')
+  DebugPrintTable(keys)
+
+  local gold = keys.gold
+  local killerPlayer = PlayerResource:GetPlayer(keys.killer_userid)
+  local team = keys.teamnumber
+end
+
+-- This function is called whenever a player changes there custom team selection during Game Setup 
+function GameMode:OnPlayerSelectedCustomTeam(keys)
+  DebugPrint('[BAREBONES] OnPlayerSelectedCustomTeam')
+  DebugPrintTable(keys)
+
+  local player = PlayerResource:GetPlayer(keys.player_id)
+  local success = (keys.success == 1)
+  local team = keys.team_id
+end
+
+-- This function is called whenever an NPC reaches its goal position/target
+function GameMode:OnNPCGoalReached(keys)
+  DebugPrint('[BAREBONES] OnNPCGoalReached')
+  DebugPrintTable(keys)
+
+  local goalEntity = EntIndexToHScript(keys.goal_entindex)
+  local nextGoalEntity = EntIndexToHScript(keys.next_goal_entindex)
+  local npc = EntIndexToHScript(keys.npc_entindex)
+end
+
+-- This function is called whenever any player sends a chat message to team or All
+function GameMode:OnPlayerChat(keys)
+  local teamonly = keys.teamonly
+  local userID = keys.userid
+  local playerID = self.vUserIds[userID]:GetPlayerID()
+
+  local text = keys.text
 end
